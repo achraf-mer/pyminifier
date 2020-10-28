@@ -164,6 +164,24 @@ def main():
         ),
         metavar="<file path>"
     )
+    parser.add_option(
+        "--ignore_class",
+        dest="ignore_class",
+        default=[],
+        help="Classes to skip"
+    )
+    parser.add_option(
+        "--ignore_variable",
+        dest="ignore_variable",
+        default=[],
+        help="Variables to skip"
+    )
+    parser.add_option(
+        "--ignore_function",
+        dest="ignore_function",
+        default=[],
+        help="Functions to skip"
+    )
     options, files = parser.parse_args()
     if not files:
         parser.print_help()

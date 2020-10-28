@@ -98,7 +98,8 @@ def apply_obfuscation(source):
         replace_obfuscatables(tokens, obfuscate_class, _class, name_generator)
     return token_utils.untokenize(tokens)
 
-def find_obfuscatables(tokens, obfunc, ignore_length=False):
+def find_obfuscatables(tokens, obfunc, ignore_length=False, ignore_function=[],
+                       ignore_variable=[], ignore_class=[]):
     """
     Iterates over *tokens*, which must be an equivalent output to what
     tokenize.generate_tokens() produces, calling *obfunc* on each with the
@@ -131,7 +132,11 @@ def find_obfuscatables(tokens, obfunc, ignore_length=False):
             skip_line = False
         if skip_line:
             continue
-        result = obfunc(tokens, index, ignore_length=ignore_length)
+        result = obfunc(tokens, index,
+                        ignore_length=ignore_length,
+                        ignore_function=ignore_function,
+                        ignore_variable=ignore_variable,
+                        ignore_class=ignore_class)
         if result:
             if skip_next:
                 skip_next = False
@@ -148,7 +153,8 @@ def find_obfuscatables(tokens, obfunc, ignore_length=False):
     return obfuscatables
 
 # Note: I'm using 'tok' instead of 'token' since 'token' is a built-in module
-def obfuscatable_variable(tokens, index, ignore_length=False):
+def obfuscatable_variable(tokens, index, ignore_length=False,
+                          ignore_variable=[], **kwargs):
     """
     Given a list of *tokens* and an *index* (representing the current position),
     returns the token string if it is a variable name that can be safely
@@ -176,6 +182,8 @@ def obfuscatable_variable(tokens, index, ignore_length=False):
     except IndexError: # Pretend it's a newline
         next_tok = (54, '\n', (1, 1), (1, 2), '#\n')
     next_tok_string = next_tok[1]
+    if token_string in ignore_variable:
+        return None
     if token_string == "=":
         return '__skipline__'
     if token_type != tokenize.NAME:
@@ -207,7 +215,7 @@ def obfuscatable_variable(tokens, index, ignore_length=False):
         return None
     return token_string
 
-def obfuscatable_class(tokens, index, **kwargs):
+def obfuscatable_class(tokens, index, ignore_class=[], **kwargs):
     """
     Given a list of *tokens* and an *index* (representing the current position),
     returns the token string if it is a class name that can be safely
@@ -225,10 +233,12 @@ def obfuscatable_class(tokens, index, **kwargs):
         return None # Skip this token
     if token_string.startswith('__'): # Don't mess with specials
         return None
+    if token_string in ignore_class:
+        return None
     if prev_tok_string == "class":
         return token_string
 
-def obfuscatable_function(tokens, index, **kwargs):
+def obfuscatable_function(tokens, index, ignore_function=[], **kwargs):
     """
     Given a list of *tokens* and an *index* (representing the current position),
     returns the token string if it is a function or method name that can be
@@ -245,6 +255,8 @@ def obfuscatable_function(tokens, index, **kwargs):
     if token_type != tokenize.NAME:
         return None # Skip this token
     if token_string.startswith('__'): # Don't mess with specials
+        return None
+    if token_string in ignore_function:
         return None
     if prev_tok_string == "def":
         return token_string
@@ -686,11 +698,15 @@ def obfuscate(module, tokens, options, name_generator=None, table=None):
                 identifier_length=identifier_length)
     if options.obfuscate:
         variables = find_obfuscatables(
-            tokens, obfuscatable_variable, ignore_length=ignore_length)
+            tokens, obfuscatable_variable,
+            ignore_length=ignore_length,
+            ignore_variable=options.ignore_variable)
         classes = find_obfuscatables(
-            tokens, obfuscatable_class)
+            tokens, obfuscatable_class,
+            ignore_class=options.ignore_class)
         functions = find_obfuscatables(
-            tokens, obfuscatable_function)
+            tokens, obfuscatable_function,
+            ignore_function=options.ignore_function)
         for variable in variables:
             replace_obfuscatables(
                 module,
@@ -717,7 +733,8 @@ def obfuscate(module, tokens, options, name_generator=None, table=None):
     else:
         if options.obf_classes:
             classes = find_obfuscatables(
-                tokens, obfuscatable_class)
+                tokens, obfuscatable_class,
+                ignore_class=options.ignore_class)
             for _class in classes:
                 replace_obfuscatables(
                     module,
@@ -729,7 +746,8 @@ def obfuscate(module, tokens, options, name_generator=None, table=None):
                 )
         if options.obf_functions:
             functions = find_obfuscatables(
-                tokens, obfuscatable_function)
+                tokens, obfuscatable_function,
+                ignore_function=options.ignore_function)
             for function in functions:
                 replace_obfuscatables(
                     module,
@@ -741,7 +759,8 @@ def obfuscate(module, tokens, options, name_generator=None, table=None):
                 )
         if options.obf_variables:
             variables = find_obfuscatables(
-                tokens, obfuscatable_variable)
+                tokens, obfuscatable_variable,
+                ignore_variable=options.ignore_variable)
             for variable in variables:
                 replace_obfuscatables(
                     module,
